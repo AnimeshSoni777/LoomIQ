@@ -1,19 +1,22 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.routers import (
-    suppliers,
-    buyers,
-    finished_goods,
-    tech_packs,
-    sales_orders,
-    sales_invoices,
-    nl_query,
-    dashboard,
+    suppliers, buyers, finished_goods, tech_packs,
+    sales_orders, sales_invoices, nl_query, dashboard,
 )
 
 app = FastAPI(
     title="WFX ERP Backend",
     docs_url="/api/docs",  
     redoc_url="/api/redoc"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(suppliers.router)
