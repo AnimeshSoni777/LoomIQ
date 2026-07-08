@@ -6,6 +6,7 @@ from app.routers import (
     tech_packs,
     sales_orders,
     sales_invoices,
+    nl_query,
 )
 
 app = FastAPI(
@@ -20,6 +21,7 @@ app.include_router(finished_goods.router)
 app.include_router(tech_packs.router)
 app.include_router(sales_orders.router)
 app.include_router(sales_invoices.router)
+app.include_router(nl_query.router)
 
 
 @app.get("/")
