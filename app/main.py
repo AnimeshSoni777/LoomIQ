@@ -10,7 +10,7 @@ from app.routers import (
 
 app = FastAPI(
     title="WFX ERP Backend",
-    docs_url="/api/docs",    # This enables your exact screenshot path
+    docs_url="/api/docs",  
     redoc_url="/api/redoc"
 )
 
