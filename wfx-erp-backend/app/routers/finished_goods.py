@@ -1,45 +1,93 @@
+import os
 from typing import Optional
 from fastapi import APIRouter, Query
 from app.database import get_connection
 import psycopg2.extras
+import typesense
+import requests
 
 router = APIRouter(prefix="/api/finished-goods", tags=["finished_goods"])
 
-SORTABLE_COLUMNS = {
-    "style_number", "style_name", "category", "fabric",
-    "gsm", "color", "season", "brand", "supplier", "cost", "selling_price",
-}
+# Connect to Typesense Cloud Cluster
+ts_client = typesense.Client({
+    'nodes': [{
+        'host': os.getenv("TYPESENSE_HOST"),
+        'port': os.getenv("TYPESENSE_PORT"),
+        'protocol': os.getenv("TYPESENSE_PROTOCOL")
+    }],
+    'api_key': os.getenv("TYPESENSE_API_KEY"),
+    'connection_timeout_seconds': 5
+})
 
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 
-@router.get("")
-def list_finished_goods():
-    from app.database import run_query
-    return run_query("SELECT * FROM finished_goods ORDER BY style_number LIMIT 100;")
-
+def get_vector_via_api(text_prompt: str) -> list:
+    model_id = "sentence-transformers/clip-ViT-B-32"
+    api_url = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{model_id}"
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"} if HF_TOKEN else {}
+    response = requests.post(api_url, headers=headers, json={"inputs": text_prompt}, timeout=10)
+    if response.status_code != 200:
+        return []
+    res = response.json()
+    return res[0] if isinstance(res, list) and isinstance(res[0], list) else res
 
 @router.get("/search")
 def search_finished_goods(
-    q: Optional[str] = Query(None, description="Free-text search across name/category/fabric/color/print/brand"),
+    q: Optional[str] = Query(None),
     category: Optional[str] = None,
     fabric: Optional[str] = None,
     color: Optional[str] = None,
     print_: Optional[str] = Query(None, alias="print"),
     season: Optional[str] = None,
     supplier: Optional[str] = None,
-    buyer: Optional[str] = Query(None, description="Filters to goods that appear in an order for this buyer"),
+    buyer: Optional[str] = Query(None),
     gsm_min: Optional[int] = None,
     gsm_max: Optional[int] = None,
-    sort_by: str = "style_number",
-    sort_dir: str = "asc",
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
 ):
-    if sort_by not in SORTABLE_COLUMNS:
-        sort_by = "style_number"
-    sort_dir = "DESC" if sort_dir.lower() == "desc" else "ASC"
+    # Base fallback lists
+    style_numbers_from_vector = []
+    
+    # 1. IF NATURAL LANGUAGE QUERY PRESENT, USE TYPESENSE VECTOR SEARCH
+    # 1. IF NATURAL LANGUAGE QUERY PRESENT, USE TYPESENSE VECTOR SEARCH
+    if q:
+        # ⚡ Update this block to use the new lazy loader
+        try:
+            from app.routers.image_search import get_clip_model
+            active_model = get_clip_model()
+            
+            if active_model:
+                search_vector = active_model.encode(q).tolist()
+            else:
+                search_vector = get_vector_via_api(q)
+        except Exception as e:
+            print(f"Fallback to API due to error: {e}")
+            search_vector = get_vector_via_api(q)
 
+        if search_vector:
+            search_payload = {
+                'searches': [{
+                    'collection': 'finished_goods',
+                    'q': '*',
+                    'vector_query': f'vec_embedding:({search_vector}, k:100)'
+                }]
+            }
+            res = ts_client.multi_search.perform(search_payload, {})
+            hits = res['results'][0].get('hits', [])
+            style_numbers_from_vector = [hit['document']['style_number'] for hit in hits]
+
+    # 2. BUILD SQL COMPOSITION WITH POSTGRES
     conditions = []
     params = []
+
+    if q and style_numbers_from_vector:
+        conditions.append("fg.style_number IN %s")
+        params.append(tuple(style_numbers_from_vector))
+    elif q:
+        conditions.append("(fg.style_name ILIKE %s OR fg.category ILIKE %s)")
+        like_word = f"%{q}%"
+        params.extend([like_word, like_word])
 
     if category:
         conditions.append("fg.category ILIKE %s")
@@ -50,21 +98,6 @@ def search_finished_goods(
     if color:
         conditions.append("fg.color ILIKE %s")
         params.append(f"%{color}%")
-    if print_:
-        conditions.append("fg.print ILIKE %s")
-        params.append(f"%{print_}%")
-    if season:
-        conditions.append("fg.season ILIKE %s")
-        params.append(f"%{season}%")
-    if supplier:
-        conditions.append("fg.supplier ILIKE %s")
-        params.append(f"%{supplier}%")
-    if gsm_min is not None:
-        conditions.append("fg.gsm >= %s")
-        params.append(gsm_min)
-    if gsm_max is not None:
-        conditions.append("fg.gsm <= %s")
-        params.append(gsm_max)
     if buyer:
         conditions.append(
             "EXISTS (SELECT 1 FROM sales_orders so "
@@ -72,29 +105,11 @@ def search_finished_goods(
         )
         params.append(f"%{buyer}%")
 
-    # Lightweight free-text search: every word in q must appear somewhere
-    # across the searchable columns. This is our Postgres-based stand-in
-    # for the doc's mandatory "text search" (e.g. "blue floral dress"),
-    # avoiding a separate Typesense server.
-    if q:
-        for word in q.split():
-            conditions.append(
-                "(fg.style_name ILIKE %s OR fg.category ILIKE %s OR fg.fabric ILIKE %s "
-                "OR fg.color ILIKE %s OR fg.print ILIKE %s OR fg.brand ILIKE %s)"
-            )
-            like_word = f"%{word}%"
-            params.extend([like_word] * 6)
-
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     offset = (page - 1) * page_size
 
     count_query = f"SELECT COUNT(*) AS total FROM finished_goods fg {where_clause};"
-    data_query = f"""
-        SELECT fg.* FROM finished_goods fg
-        {where_clause}
-        ORDER BY fg.{sort_by} {sort_dir}
-        LIMIT %s OFFSET %s;
-    """
+    data_query = f"SELECT fg.* FROM finished_goods fg {where_clause} LIMIT %s OFFSET %s;"
 
     conn = get_connection()
     try:
@@ -112,5 +127,5 @@ def search_finished_goods(
         "page": page,
         "page_size": page_size,
         "total_count": total_count,
-        "total_pages": (total_count + page_size - 1) // page_size,
+        "total_pages": (total_count + page_size - 1) // page_size if total_count > 0 else 1,
     }

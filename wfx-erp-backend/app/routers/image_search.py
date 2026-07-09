@@ -11,13 +11,20 @@ router = APIRouter(prefix="/api/image-search", tags=["image_search"])
 RUN_MODE = os.getenv("RUN_MODE", "local").lower()
 HF_TOKEN = os.getenv("HF_TOKEN", "")
 
-if RUN_MODE == "local":
-    print("LOG: Local Development Mode. Loading OpenCLIP model into memory...")
-    from sentence_transformers import SentenceTransformer
-    clip_model = SentenceTransformer('clip-ViT-B-32')
-else:
-    print("LOG: Cloud Deployment Mode. Memory-heavy libraries bypassed.")
-    clip_model = None
+# --- LAZY LOADING LOGIC START ---
+_clip_model_cache = None
+
+def get_clip_model():
+    """Lazy loader: Loads the ML model into RAM only when the first search is executed."""
+    global _clip_model_cache
+    if RUN_MODE == "local":
+        if _clip_model_cache is None:
+            print("⚡ First time calling AI: Loading OpenCLIP weights into memory...")
+            from sentence_transformers import SentenceTransformer
+            _clip_model_cache = SentenceTransformer('clip-ViT-B-32')
+        return _clip_model_cache
+    return None
+# --- LAZY LOADING LOGIC END ---
 
 ts_client = typesense.Client({
     'nodes': [{
@@ -57,22 +64,28 @@ async def search_visual_assets(
         raise HTTPException(status_code=400, detail="Please provide either a search phrase or an image file.")
 
     search_vector = []
+    
+    # ⚡ Get the model ONLY when the route is actually called
+    active_model = get_clip_model()
 
     try:
+        # 1. Convert user's uploaded image file into a vector
         if image_file:
             img_bytes = await image_file.read()
-            if RUN_MODE == "local" and clip_model:
+            if RUN_MODE == "local" and active_model:
                 img = Image.open(io.BytesIO(img_bytes))
-                search_vector = clip_model.encode(img).tolist()
+                search_vector = active_model.encode(img).tolist()
             else:
                 search_vector = get_vector_via_api(img_bytes, is_image=True)
                 
+        # 2. Convert user's plain text query into a vector
         elif query_text:
-            if RUN_MODE == "local" and clip_model:
-                search_vector = clip_model.encode(query_text).tolist()
+            if RUN_MODE == "local" and active_model:
+                search_vector = active_model.encode(query_text).tolist()
             else:
                 search_vector = get_vector_via_api(b"", is_image=False, text_prompt=query_text)
 
+        # 3. Query Typesense Cloud using Vector Search
         search_payload = {
             'searches': [
                 {
@@ -90,7 +103,6 @@ async def search_visual_assets(
         for hit in hits:
             doc = hit['document']
             dist = hit['vector_distance']
-            # Calculate a user-friendly match score percentage
             doc['match_score'] = round((1 - dist) * 100, 1) if dist < 1 else 0.0
             formatted_items.append(doc)
 
