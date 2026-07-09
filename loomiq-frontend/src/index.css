@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  --color-canvas: #F6F3EC;
-  --color-ink: #21242B;
-  --color-denim: #35507A;
-  --color-thread: #C68A2E;
-  --color-sage: #6B7F5B;
-  --color-rust: #B14A3A;
+  --color-canvas: #F8FAFC;
+  --color-ink: #1C1C21;
+  --color-denim: #6B21A8;
+  --color-thread: #9333EA;
+  --color-sage: #10B981;
+  --color-rust: #EF4444;
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
@@ -19,7 +19,7 @@
   }
 
   *:focus-visible {
-    outline: 2px solid var(--color-denim);
+    outline: 2px solid #6B21A8;
     outline-offset: 2px;
   }
 }

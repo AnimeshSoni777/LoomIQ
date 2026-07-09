@@ -43,16 +43,15 @@ def search_finished_goods(
     buyer: Optional[str] = Query(None),
     gsm_min: Optional[int] = None,
     gsm_max: Optional[int] = None,
+    sort_by: str = Query("selling_price"), # Default sort
+    sort_dir: str = Query("asc"),          # Default direction
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
 ):
-    # Base fallback lists
     style_numbers_from_vector = []
     
-    # 1. IF NATURAL LANGUAGE QUERY PRESENT, USE TYPESENSE VECTOR SEARCH
-    # 1. IF NATURAL LANGUAGE QUERY PRESENT, USE TYPESENSE VECTOR SEARCH
+    # 1. VECTOR SEARCH FOR NATURAL LANGUAGE QUERIES
     if q:
-        # ⚡ Update this block to use the new lazy loader
         try:
             from app.routers.image_search import get_clip_model
             active_model = get_clip_model()
@@ -77,7 +76,7 @@ def search_finished_goods(
             hits = res['results'][0].get('hits', [])
             style_numbers_from_vector = [hit['document']['style_number'] for hit in hits]
 
-    # 2. BUILD SQL COMPOSITION WITH POSTGRES
+    # 2. SQL QUERY BUILDER (Now with all filters & sorting active!)
     conditions = []
     params = []
 
@@ -98,6 +97,21 @@ def search_finished_goods(
     if color:
         conditions.append("fg.color ILIKE %s")
         params.append(f"%{color}%")
+    if print_:
+        conditions.append("fg.print ILIKE %s")
+        params.append(f"%{print_}%")
+    if season:
+        conditions.append("fg.season ILIKE %s")
+        params.append(f"%{season}%")
+    if supplier:
+        conditions.append("fg.supplier ILIKE %s")
+        params.append(f"%{supplier}%")
+    if gsm_min is not None:
+        conditions.append("fg.gsm >= %s")
+        params.append(gsm_min)
+    if gsm_max is not None:
+        conditions.append("fg.gsm <= %s")
+        params.append(gsm_max)
     if buyer:
         conditions.append(
             "EXISTS (SELECT 1 FROM sales_orders so "
@@ -106,10 +120,17 @@ def search_finished_goods(
         params.append(f"%{buyer}%")
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    
+    # 3. SECURE SORTING LOGIC
+    allowed_sort_columns = {"style_number", "selling_price", "gsm", "cost"}
+    safe_sort_by = sort_by if sort_by in allowed_sort_columns else "selling_price"
+    safe_sort_dir = "DESC" if sort_dir.lower() == "desc" else "ASC"
+    order_clause = f"ORDER BY fg.{safe_sort_by} {safe_sort_dir}"
+
     offset = (page - 1) * page_size
 
     count_query = f"SELECT COUNT(*) AS total FROM finished_goods fg {where_clause};"
-    data_query = f"SELECT fg.* FROM finished_goods fg {where_clause} LIMIT %s OFFSET %s;"
+    data_query = f"SELECT fg.* FROM finished_goods fg {where_clause} {order_clause} LIMIT %s OFFSET %s;"
 
     conn = get_connection()
     try:
