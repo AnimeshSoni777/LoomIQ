@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { searchFinishedGoods } from "../lib/api";
+import { searchFinishedGoods, postImageSearch } from "../lib/api";
 import WovenLabel from "../components/ui/WovenLabel";
 import { Upload, ImageIcon, Sparkles } from "lucide-react";
 
@@ -14,7 +14,6 @@ export default function ImageSearch() {
     const file = e.target.files[0];
     if (file) {
       setPreviewImage(URL.createObjectURL(file));
-      // Simulate prompt token extraction based on file structural composition naming heuristics
       if (!naturalQuery) {
         setNaturalQuery("Denim");
       }
@@ -28,8 +27,15 @@ export default function ImageSearch() {
     setLoading(true);
     setError(null);
     try {
-      // Forward input vectors toward the dynamic string-match generator backend routing loop
-      const data = await searchFinishedGoods({ q: naturalQuery || "Fabric", page_size: 6 });
+      const formData = new FormData();
+      if (naturalQuery) formData.append("query_text", naturalQuery);
+      
+      const fileInput = document.querySelector('input[type="file"]');
+      if (fileInput && fileInput.files[0]) {
+        formData.append("image_file", fileInput.files[0]);
+      }
+
+      const data = await postImageSearch(formData);
       setResults(data.items);
     } catch (err) {
       setError(err.message);
@@ -49,7 +55,6 @@ export default function ImageSearch() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Search Vector Setter Panel */}
         <div className="bg-white/60 border border-ink/10 rounded-md p-5 h-fit space-y-4 shadow-sm">
           <div className="flex items-center gap-2 pb-2 border-b border-ink/5">
             <Sparkles size={14} className="text-thread" />
@@ -57,7 +62,6 @@ export default function ImageSearch() {
           </div>
 
           <form onSubmit={handleSemanticSearch} className="space-y-4 font-mono text-xs">
-            {/* Native Image Upload Zone Drop-box */}
             <div>
               <label className="block text-ink/60 mb-1.5">Garment Input / Pattern Swatch[cite: 2]</label>
               <div className="border-2 border-dashed border-ink/15 hover:border-denim/40 rounded-md p-4 bg-white/40 text-center transition-colors relative cursor-pointer">
@@ -81,7 +85,6 @@ export default function ImageSearch() {
               </div>
             </div>
 
-            {/* Descriptive Text Input */}
             <div>
               <label className="block text-ink/60 mb-1">Semantic Text Search Phrase[cite: 2]</label>
               <input
@@ -103,7 +106,6 @@ export default function ImageSearch() {
           </form>
         </div>
 
-        {/* Right Search Results Execution View Grid */}
         <div className="md:col-span-2 space-y-4">
           <div className="flex items-center gap-2">
             <WovenLabel tone="denim">Embedding Matrix Matches</WovenLabel>

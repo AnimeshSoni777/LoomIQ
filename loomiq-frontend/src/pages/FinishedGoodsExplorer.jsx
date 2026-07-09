@@ -27,7 +27,6 @@ export default function FinishedGoodsExplorer() {
     setLoading(true);
     setError(null);
 
-    // Merge pagination and explicit filters
     const payload = {
       ...pagination,
       category: filters.category,
@@ -51,7 +50,6 @@ export default function FinishedGoodsExplorer() {
       .finally(() => setLoading(false));
   };
 
-  // Re-fetch only when pagination details change (filters wait for submit)
   useEffect(() => {
     fetchProducts();
   }, [pagination.page, pagination.sort_by, pagination.sort_dir, pagination.page_size]);
@@ -79,7 +77,6 @@ export default function FinishedGoodsExplorer() {
   const clearFilters = () => {
     setFilters({ category: "", fabric: "", color: "", print_: "", season: "", supplier: "", buyer: "", gsm_min: "", gsm_max: "" });
     setPagination((prev) => ({ ...prev, page: 1 }));
-    // fetchProducts is called automatically since we will explicitly call it, or we wait for state to settle.
     setTimeout(() => {
       fetchProducts();
     }, 50);
@@ -107,7 +104,6 @@ export default function FinishedGoodsExplorer() {
         </div>
       </div>
 
-      {/* Collapsible Filter Dropdown */}
       {isFilterOpen && (
         <form onSubmit={applyFilters} className="bg-white/60 border border-ink/10 rounded-md p-5 shadow-sm font-mono text-xs animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

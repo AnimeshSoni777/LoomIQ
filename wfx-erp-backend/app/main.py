@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import (
     suppliers, buyers, finished_goods, tech_packs,
-    sales_orders, sales_invoices, nl_query, dashboard,
+    sales_orders, sales_invoices, nl_query, dashboard, image_search,
 )
 
 app = FastAPI(
@@ -27,6 +27,7 @@ app.include_router(sales_orders.router)
 app.include_router(sales_invoices.router)
 app.include_router(nl_query.router)
 app.include_router(dashboard.router)
+app.include_router(image_search.router)
 
 
 @app.get("/")

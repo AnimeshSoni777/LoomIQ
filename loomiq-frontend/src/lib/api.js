@@ -35,3 +35,11 @@ export async function searchFinishedGoods(filters = {}) {
   const response = await fetch(`${API_BASE_URL}/api/finished-goods/search?${params.toString()}`);
   return handleResponse(response);
 }
+
+export async function postImageSearch(formData) {
+  const response = await fetch(`${API_BASE_URL}/api/image-search`, {
+    method: "POST",
+    body: formData, 
+  });
+  return handleResponse(response);
+}
