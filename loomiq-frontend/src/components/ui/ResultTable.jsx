@@ -1,7 +1,8 @@
+import { Download } from "lucide-react";
+
 /* ── CRM-style result list ──────────────────────────────────────
    No vertical borders, generous padding, hairline row dividers,
    pill badges for short categorical values.                       */
-
 const PILL_KEYS = ["category", "season", "fabric", "color", "print", "status", "currency"];
 const PILL_TONES = [
   "bg-purple-50 text-purple-700",
@@ -26,7 +27,30 @@ function isNumeric(value) {
 
 export default function ResultTable({ columns, rows }) {
   if (!columns || !rows || rows.length === 0) return null;
-
+  // ⚡ Browser-native CSV Export Logic
+  const handleDownload = () => {
+    const header = columns.join(",");
+    const csvRows = rows.map((row) => {
+      return columns
+        .map((col) => {
+          let val = row[col];
+          if (val === null || val === undefined) val = "";
+          val = String(val).replace(/"/g, '""');
+          if (val.search(/("|,|\n)/g) >= 0) val = `"${val}"`;
+          return val;
+        })
+        .join(",");
+    });
+    const csvContent = [header, ...csvRows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `LoomIQ_Export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   return (
     <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -67,8 +91,17 @@ export default function ResultTable({ columns, rows }) {
           </tbody>
         </table>
       </div>
-      <div className="border-t border-gray-100 bg-slate-50/40 px-6 py-2.5 text-[12px] text-slate-500">
-        {rows.length} record{rows.length === 1 ? "" : "s"}
+      <div className="flex items-center justify-between border-t border-gray-100 bg-slate-50/40 px-6 py-2.5">
+        <span className="text-[12px] text-slate-500">
+          {rows.length} record{rows.length === 1 ? "" : "s"}
+        </span>
+        <button
+          onClick={handleDownload}
+          className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-medium text-slate-600 transition-colors hover:bg-slate-200/60 hover:text-slate-900 cursor-pointer"
+        >
+          <Download size={13} strokeWidth={2.5} />
+          Export CSV
+        </button>
       </div>
     </div>
   );
