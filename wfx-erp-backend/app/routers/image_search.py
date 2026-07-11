@@ -44,7 +44,15 @@ ts_client = typesense.Client({
     'api_key': os.getenv("TYPESENSE_API_KEY"),
     'connection_timeout_seconds': 5
 })
+import socket
 
+def is_connected():
+    """Quick check to see if the container can reach the internet."""
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=2)
+        return True
+    except OSError:
+        return False
 
 def get_vector_via_api(content_bytes: bytes, is_image: bool = True, text_prompt: str = None) -> list:
     model_id = "sentence-transformers/clip-ViT-B-32"
@@ -56,6 +64,9 @@ def get_vector_via_api(content_bytes: bytes, is_image: bool = True, text_prompt:
     retry = Retry(connect=3, backoff_factor=1.0)
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("https://", adapter)
+    if not is_connected():
+        print("⚠️ Network error detected! Container offline.")
+        raise HTTPException(status_code=503, detail="Service temporarily offline (Network DNS Error).")
     
     try:
         if is_image:
