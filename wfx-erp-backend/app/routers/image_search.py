@@ -5,8 +5,6 @@ from fastapi import APIRouter, File, Form, UploadFile, HTTPException
 from typing import Optional
 from PIL import Image
 import typesense
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 router = APIRouter(prefix="/api/image-search", tags=["image_search"])
 
@@ -17,21 +15,14 @@ HF_TOKEN = os.getenv("HF_TOKEN", "")
 _clip_model_cache = None
 
 def get_clip_model():
-    """Lazy loader: Returns the local model if in local mode, otherwise returns None for cloud mode."""
+    """Lazy loader: Loads the ML model into RAM only when the first search is executed."""
     global _clip_model_cache
-    
     if RUN_MODE == "local":
         if _clip_model_cache is None:
             print("⚡ First time calling AI: Loading OpenCLIP weights into memory...")
             from sentence_transformers import SentenceTransformer
             _clip_model_cache = SentenceTransformer('clip-ViT-B-32')
         return _clip_model_cache
-    
-    # Explicitly handle cloud mode
-    if RUN_MODE == "cloud":
-        print("☁️ Running in Cloud Mode: Skipping local model load.")
-        return None
-        
     return None
 # --- LAZY LOADING LOGIC END ---
 
@@ -44,45 +35,25 @@ ts_client = typesense.Client({
     'api_key': os.getenv("TYPESENSE_API_KEY"),
     'connection_timeout_seconds': 5
 })
-import socket
-
-def is_connected():
-    """Quick check to see if the container can reach the internet."""
-    try:
-        socket.create_connection(("8.8.8.8", 53), timeout=2)
-        return True
-    except OSError:
-        return False
 
 def get_vector_via_api(content_bytes: bytes, is_image: bool = True, text_prompt: str = None) -> list:
+    """Lightweight cloud fallback: Vectorizes input without using local server RAM."""
     model_id = "sentence-transformers/clip-ViT-B-32"
     api_url = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{model_id}"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"} if HF_TOKEN else {}
     
-    # ⚡ Added Retry Logic to handle temporary DNS failures
-    session = requests.Session()
-    retry = Retry(connect=3, backoff_factor=1.0)
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    if not is_connected():
-        print("⚠️ Network error detected! Container offline.")
-        raise HTTPException(status_code=503, detail="Service temporarily offline (Network DNS Error).")
-    
-    try:
-        if is_image:
-            response = session.post(api_url, headers=headers, data=content_bytes, timeout=15)
-        else:
-            response = session.post(api_url, headers=headers, json={"inputs": text_prompt}, timeout=15)
+    if is_image:
+        response = requests.post(api_url, headers=headers, data=content_bytes, timeout=10)
+    else:
+        response = requests.post(api_url, headers=headers, json={"inputs": text_prompt}, timeout=10)
         
-        if response.status_code != 200:
-            raise HTTPException(status_code=502, detail=f"HuggingFace error: {response.text}")
-            
-        res = response.json()
-        return res[0] if isinstance(res, list) else res
+    if response.status_code != 200:
+        raise HTTPException(status_code=502, detail="Vectorizer API was sleeping or rate-limited. Please retry in a moment.")
         
-    except requests.exceptions.ConnectionError:
-        # Final fallback if DNS still fails
-        raise HTTPException(status_code=503, detail="Cloud Vectorizer unreachable. DNS resolution failed. Please try again.")
+    res = response.json()
+    if isinstance(res, list) and len(res) > 0 and isinstance(res[0], list):
+        return res[0]
+    return res
 
 @router.post("")
 async def search_visual_assets(
