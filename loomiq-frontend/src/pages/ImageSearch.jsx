@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { postImageSearch } from "../lib/api";
 import { Upload, ImageIcon, Sparkles, X, Package } from "lucide-react";
+import SkeletonGrid from "../components/ui/SkelitonGrid";
 
 const PILL_TONES = {
   gray: "bg-gray-100 text-gray-700",
@@ -40,7 +41,7 @@ export default function ImageSearch() {
     const file = e.target.files[0];
     if (file) {
       setPreviewImage(URL.createObjectURL(file));
-      if (!naturalQuery) setNaturalQuery("Denim");
+      if (!naturalQuery) setNaturalQuery("");
     }
   };
 
@@ -125,16 +126,17 @@ export default function ImageSearch() {
         <div className="md:col-span-2 space-y-4">
           {error && <div className="text-red-600 text-sm border border-red-200 bg-red-50 p-3 rounded-lg">{error}</div>}
 
-          {results.length === 0 && !loading && (
+          {/* Skeleton Grid implementation */}
+          {loading && <SkeletonGrid count={6} cols="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />}
+
+          {!loading && results.length === 0 && (
             <div className="grid place-items-center rounded-xl border border-gray-100 bg-white px-6 py-20 text-center shadow-sm">
               <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-slate-50 text-slate-300"><ImageIcon size={20} /></span>
               <p className="text-[13px] text-slate-400">Initialize visual prompt vector parameters on the left to scan similarity models.</p>
             </div>
           )}
 
-          {loading ? (
-            <div className="text-[13px] text-slate-500 font-medium">Running matrix similarity checks against standard transformers indexes...</div>
-          ) : (
+          {!loading && results.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {results.map((item) => (
                 <div key={item.style_number} onClick={() => setSelectedProduct(item)} role="button" tabIndex={0} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelectedProduct(item)} className="group overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:ring-2 hover:ring-purple-500 hover:border-transparent hover:shadow-md cursor-pointer">

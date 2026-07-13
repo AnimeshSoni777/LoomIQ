@@ -1,7 +1,7 @@
-
 export function SkeletonProductCard({ aspect = "aspect-[3/4]" }) {
   return (
-    <div className="bg-white border border-accent rounded-md overflow-hidden flex flex-col animate-pulse">
+    // Changed border-accent to border-transparent
+    <div className="bg-white border border-transparent rounded-md overflow-hidden flex flex-col animate-pulse">
       {/* image box */}
       <div className={`${aspect} bg-ink/10 relative overflow-hidden shimmer`}>
         {/* woven-label ghost */}
@@ -16,14 +16,16 @@ export function SkeletonProductCard({ aspect = "aspect-[3/4]" }) {
         </div>
 
         {/* spec rows behind dashed divider */}
-        <div className="border-t border-dashed border-accent pt-2.5 space-y-1.5">
+        {/* Changed border-dashed border-accent to border-transparent */}
+        <div className="border-t border-dashed border-transparent pt-2.5 space-y-1.5">
           <div className="h-2.5 bg-ink/10 rounded w-2/3" />
           <div className="h-2.5 bg-ink/10 rounded w-1/3" />
           <div className="h-2.5 bg-ink/10 rounded w-4/5" />
         </div>
 
         {/* price footer: cost hairline + price pill */}
-        <div className="border-t border-accent pt-2.5 flex items-center justify-between">
+        {/* Changed border-accent to border-transparent */}
+        <div className="border-t border-transparent pt-2.5 flex items-center justify-between">
           <div className="h-2.5 bg-ink/10 rounded w-14" />
           <div className="h-5 bg-ink/10 rounded-full w-16" />
         </div>

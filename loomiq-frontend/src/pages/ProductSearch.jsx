@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { searchFinishedGoods } from "../lib/api";
 import { Search, SlidersHorizontal, PackageX, X, Package } from "lucide-react";
+import SkeletonGrid from "../components/ui/SkelitonGrid"; 
 
 const PILL_TONES = {
   gray: "bg-gray-100 text-gray-700",
@@ -170,7 +171,11 @@ export default function ProductSearch() {
       {error && <div className="text-red-600 text-sm border border-red-200 bg-red-50 p-3 rounded-lg">{error}</div>}
 
       <div className="space-y-4">
-        {items.length === 0 && !loading && hasSearched && (
+        {/* 1. Show skeletons while fetching data using your reusable component */}
+        {loading && <SkeletonGrid count={8} />}
+
+        {/* 2. Show empty state if search returned nothing */}
+        {!loading && items.length === 0 && hasSearched && (
           <div className="grid place-items-center rounded-xl border border-gray-100 bg-white px-6 py-20 text-center shadow-sm">
             <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-slate-50 text-slate-300">
               <PackageX size={20} />
@@ -180,57 +185,61 @@ export default function ProductSearch() {
           </div>
         )}
 
-        {items.length === 0 && !hasSearched && (
+        {/* 3. Show initial state before user searches */}
+        {!loading && items.length === 0 && !hasSearched && (
           <div className="grid place-items-center rounded-xl border border-gray-100 bg-white px-6 py-16 text-center shadow-sm">
             <p className="text-[13px] text-slate-400">Configure terms above and click 'Execute Search' to pull indexing rows.</p>
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {items.map((item) => (
-            <div
-              key={item.style_number}
-              onClick={() => setSelectedProduct(item)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelectedProduct(item)}
-              className="group overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:ring-2 hover:ring-purple-500 hover:border-transparent hover:shadow-md cursor-pointer"
-            >
-              <div className="relative aspect-[3/4] overflow-hidden bg-gray-50">
-                {item.image_url ? (
-                  <img src={item.image_url} alt={item.style_name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                ) : (
-                  <div className="grid h-full w-full place-items-center"><Package size={24} className="text-slate-200" /></div>
-                )}
-                <span className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-white/90 px-2 py-1 text-[10.5px] font-medium text-[#6B21A8] opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
-                  View details
-                </span>
-              </div>
+        {/* 4. Show actual products */}
+        {!loading && items.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {items.map((item) => (
+              <div
+                key={item.style_number}
+                onClick={() => setSelectedProduct(item)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelectedProduct(item)}
+                className="group overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:ring-2 hover:ring-purple-500 hover:border-transparent hover:shadow-md cursor-pointer"
+              >
+                <div className="relative aspect-[3/4] overflow-hidden bg-gray-50">
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.style_name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center"><Package size={24} className="text-slate-200" /></div>
+                  )}
+                  <span className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-white/90 px-2 py-1 text-[10.5px] font-medium text-[#6B21A8] opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                    View details
+                  </span>
+                </div>
 
-              <div className="space-y-3 p-4">
-                <div>
-                  <h3 className="truncate text-[13.5px] font-medium text-slate-900 transition-colors group-hover:text-[#6B21A8]">{item.style_name}</h3>
-                  <p className="mt-0.5 font-mono text-[11.5px] text-slate-400">{item.style_number}</p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <Pill tone="purple">{item.category}</Pill>
-                  <Pill tone="blue">{item.fabric}</Pill>
-                  <Pill tone="amber">{item.season}</Pill>
-                </div>
-                <div className="flex items-end justify-between border-t border-gray-100 pt-3">
-                  <div className="text-[11.5px] leading-relaxed text-slate-400">
-                    <p>{item.gsm} GSM</p>
-                    <p className="max-w-28 truncate">{item.supplier}</p>
+                <div className="space-y-3 p-4">
+                  <div>
+                    <h3 className="truncate text-[13.5px] font-medium text-slate-900 transition-colors group-hover:text-[#6B21A8]">{item.style_name}</h3>
+                    <p className="mt-0.5 font-mono text-[11.5px] text-slate-400">{item.style_number}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[14px] font-semibold tabular-nums text-slate-900">₹{parseFloat(item.selling_price).toFixed(2)}</p>
-                    <p className="text-[11px] tabular-nums text-slate-400">cost ₹{parseFloat(item.cost).toFixed(0)}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Pill tone="purple">{item.category}</Pill>
+                    <Pill tone="blue">{item.fabric}</Pill>
+                    <Pill tone="amber">{item.season}</Pill>
+                  </div>
+                  <div className="flex items-end justify-between border-t border-gray-100 pt-3">
+                    <div className="text-[11.5px] leading-relaxed text-slate-400">
+                      <p>{item.gsm} GSM</p>
+                      <p className="max-w-28 truncate">{item.supplier}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[14px] font-semibold tabular-nums text-slate-900">₹{parseFloat(item.selling_price).toFixed(2)}</p>
+                      <p className="text-[11px] tabular-nums text-slate-400">cost ₹{parseFloat(item.cost).toFixed(0)}</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {selectedProduct && (
