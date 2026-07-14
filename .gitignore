@@ -24,3 +24,5 @@ dist-ssr
 venv/
 .gitignore
 repomix-output.xml
+backend-repomix-output.xml
+frontend-repomix-output.xml
